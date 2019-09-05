@@ -2,6 +2,8 @@
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Security.Principal;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 using Microsoft.Win32.SafeHandles;
 
 namespace SecurityTests
@@ -49,9 +51,11 @@ namespace SecurityTests
                 switch (secStatus)
                 {
                     case NTE_USER_CANCELLED:
-                        throw new AuthProviderUserCancelledException();
+                        MessageBox.Show("AuthProviderUserCancelledException");
+                        break;
                     default:
-                        throw new AuthProviderSystemErrorException("External error occurred", secStatus);
+                        MessageBox.Show("External error occurred", secStatus.ToString());
+                        break;
                 }
             }
         }
@@ -114,9 +118,9 @@ namespace SecurityTests
         private static readonly object _mutex = new object();
         private static WeakReference _instance;
 
-        private const string Domain = Settings.ProductName;
+        private const string Domain = "KeePassWinHello";
         private const string SubDomain = "";
-        private const string PersistentName = Settings.ProductName;
+        private const string PersistentName = "KeePassWinHello";
         private const string InvalidatedKeyMessage = "Persistent key has not met integrity requirements. It might be caused by a spoofing attack. Try to recreate the key.";
         private string _currentKeyName;
 
@@ -129,7 +133,9 @@ namespace SecurityTests
         private static string RetreivePersistentKeyName()
         {
             var sid = WindowsIdentity.GetCurrent().User.Value;
-            return sid + "//" + Domain + "/" + SubDomain + "/" + PersistentName;
+            var sid1 = sid + "//" + Domain + "/" + SubDomain + "/" + PersistentName;
+            //Console.WriteLine(sid1);
+            return sid1;
         }
 
         private static bool IsAvailable()
@@ -141,7 +147,7 @@ namespace SecurityTests
         {
             if (authCacheType == AuthCacheType.Local)
             {
-                DeletePersistentKey();
+                //DeletePersistentKey();
                 _currentKeyName = RetreiveLocalKeyName();
             }
             else
@@ -150,15 +156,15 @@ namespace SecurityTests
 
                 SafeNCryptKeyHandle ngcKeyHandle;
                 if (!TryOpenPersistentKey(out ngcKeyHandle))
-                    throw new AuthProviderInvalidKeyException("Persistent key does not exist.");
+                    MessageBox.Show("Persistent key does not exist.");
 
                 using (ngcKeyHandle)
                 {
                     if (!VerifyPersistentKeyIntegrity(ngcKeyHandle))
                     {
                         ngcKeyHandle.Close();
-                        DeletePersistentKey();
-                        throw new AuthProviderInvalidKeyException(InvalidatedKeyMessage);
+                        //DeletePersistentKey();
+                        MessageBox.Show(InvalidatedKeyMessage);
                     }
                 }
 
@@ -169,7 +175,7 @@ namespace SecurityTests
         public static WinHelloProvider CreateInstance(AuthCacheType authCacheType)
         {
             if (!IsAvailable())
-                throw new AuthProviderIsUnavailableException("Windows Hello is not available.");
+                MessageBox.Show("Windows Hello is not available.");
 
             lock (_mutex)
             {
@@ -179,7 +185,7 @@ namespace SecurityTests
                     if (winHelloProvider.CurrentCacheType == authCacheType)
                         return winHelloProvider;
                     else
-                        throw new AuthProviderException("Incompatible cache type with existing instance.");
+                        MessageBox.Show("Incompatible cache type with existing instance.");
                 }
 
                 winHelloProvider = new WinHelloProvider(authCacheType);
@@ -198,7 +204,7 @@ namespace SecurityTests
             {
                 if (authCacheType == AuthCacheType.Local)
                 {
-                    DeletePersistentKey();
+                    //DeletePersistentKey();
                 }
                 else
                 {
@@ -210,7 +216,7 @@ namespace SecurityTests
                         using (ngcKeyHandle)
                         {
                             if (!VerifyPersistentKeyIntegrity(ngcKeyHandle))
-                                throw new AuthProviderInvalidKeyException(InvalidatedKeyMessage);
+                                MessageBox.Show(InvalidatedKeyMessage);
                         }
                     }
                     else
@@ -247,8 +253,8 @@ namespace SecurityTests
             {
                 using (ngcKeyHandle)
                 {
-                    NCryptDeleteKey(ngcKeyHandle, 0).CheckStatus();
-                    ngcKeyHandle.SetHandleAsInvalid();
+                    //NCryptDeleteKey(ngcKeyHandle, 0).CheckStatus();
+                    //ngcKeyHandle.SetHandleAsInvalid();
                 }
             }
         }
@@ -330,7 +336,7 @@ namespace SecurityTests
                 using (ngcKeyHandle)
                 {
                     if (CurrentCacheType == AuthCacheType.Persistent && !VerifyPersistentKeyIntegrity(ngcKeyHandle))
-                        throw new AuthProviderInvalidKeyException(InvalidatedKeyMessage);
+                        MessageBox.Show(InvalidatedKeyMessage);
 
                     int pcbResult;
                     NCryptEncrypt(ngcKeyHandle, data, data.Length, IntPtr.Zero, null, 0, out pcbResult, NCRYPT_PAD_PKCS1_FLAG).CheckStatus();
@@ -346,7 +352,7 @@ namespace SecurityTests
 
         public byte[] PromptToDecrypt(byte[] data)
         {
-            /*
+            
             byte[] cbResult;
             SafeNCryptProviderHandle ngcProviderHandle;
             NCryptOpenStorageProvider(out ngcProviderHandle, MS_NGC_KEY_STORAGE_PROVIDER, 0);
@@ -357,24 +363,26 @@ namespace SecurityTests
                 using (ngcKeyHandle)
                 {
                     if (CurrentCacheType == AuthCacheType.Persistent && !VerifyPersistentKeyIntegrity(ngcKeyHandle))
-                        throw new AuthProviderInvalidKeyException(InvalidatedKeyMessage);
+                        Console.WriteLine("Failed Integrity");
                     
                     ApplyUIContext(ngcKeyHandle);
-                    
-                    //byte[] pinRequired = BitConverter.GetBytes(1);
-                    //NCryptSetProperty(ngcKeyHandle, NCRYPT_PIN_CACHE_IS_GESTURE_REQUIRED_PROPERTY, pinRequired, pinRequired.Length, CngPropertyOptions.None).CheckStatus();
 
+                    byte[] pinRequired = BitConverter.GetBytes(1);
+                    NCryptSetProperty(ngcKeyHandle, NCRYPT_PIN_CACHE_IS_GESTURE_REQUIRED_PROPERTY, pinRequired, pinRequired.Length, CngPropertyOptions.None).CheckStatus();
+                    
                     // The pbInput and pbOutput parameters can point to the same buffer. In this case, this function will perform the decryption in place.
                     cbResult = new byte[data.Length * 2];
                     int pcbResult;
-                    NCryptDecrypt(ngcKeyHandle, data, data.Length, IntPtr.Zero, cbResult, cbResult.Length, out pcbResult, NCRYPT_PAD_PKCS1_FLAG);
+                    
+                    Console.WriteLine(NCryptDecrypt(ngcKeyHandle, data, data.Length, IntPtr.Zero, cbResult, cbResult.Length, out pcbResult, NCRYPT_PAD_PKCS1_FLAG).secStatus);
                     // TODO: secure resize
+                    Console.WriteLine("Aqui?");
                     Array.Resize(ref cbResult, pcbResult);
                 }
             }
-            */
+            /*
             SafeNCryptProviderHandle ngcProviderHandle;
-            var ChkResult = WinHelloProvider.NCryptOpenStorageProvider(out ngcProviderHandle, "Microsoft Passport Key Storage Provider", 0);
+            var ChkResult = NCryptOpenStorageProvider(out ngcProviderHandle, "Microsoft Passport Key Storage Provider", 0);
 
             SafeNCryptKeyHandle ngcKeyHandle;
             var ChkResult2 = NCryptOpenKey(
@@ -384,18 +392,19 @@ namespace SecurityTests
                     0,
                     CngKeyOpenOptions.None);
 
-            var decryptedData = new byte[data.Length * 2];
+            var cbResult = new byte[data.Length * 2];
 
             int pcbResult;
 
             int NcryptPadPkcs1Flag = 0x00000002;
 
-            var integ = WinHelloProvider.NCryptDecrypt(ngcKeyHandle, data, data.Length, IntPtr.Zero,
-                decryptedData, decryptedData.Length, out pcbResult, NcryptPadPkcs1Flag);
+            var integ = NCryptDecrypt(ngcKeyHandle, data, data.Length, IntPtr.Zero,
+                cbResult, cbResult.Length, out pcbResult, NcryptPadPkcs1Flag);
 
-            Array.Resize(ref decryptedData, pcbResult);
-
-            return decryptedData;
+            Array.Resize(ref cbResult, pcbResult);
+            */
+            return cbResult;
+            
         }
 
         internal static readonly Lazy<string> CurrentPassportKeyName = new Lazy<string>(RetrievePassportKeyName);
@@ -426,8 +435,80 @@ namespace SecurityTests
         }
     }
 
+    class WinHelloProvider2 : IAuthProvider
+    {
+        private readonly IAuthProvider _winHelloProvider;
+        private readonly IntPtr _keePassWindowHandle;
+
+        public WinHelloProvider2(IAuthProvider provider, IntPtr keePassWindowHandle)
+        {
+            if (provider == null)
+                throw new ArgumentNullException("provider");
+
+            _winHelloProvider = provider;
+            _keePassWindowHandle = keePassWindowHandle;
+        }
+
+        public AuthCacheType CurrentCacheType
+        {
+            get
+            {
+                return _winHelloProvider.CurrentCacheType;
+            }
+        }
+
+        public void ClaimCurrentCacheType(AuthCacheType newType)
+        {
+            _winHelloProvider.ClaimCurrentCacheType(newType);
+        }
+
+        public byte[] Encrypt(byte[] data)
+        {
+            return _winHelloProvider.Encrypt(data);
+        }
+
+        public byte[] PromptToDecrypt(byte[] data)
+        {
+            var result = _winHelloProvider.PromptToDecrypt(data);
+            return result;
+        }
+
+    }
+
+    internal sealed class AuthProviderUIContext : IDisposable, IWin32Window
+    {
+        [ThreadStatic]
+        public static AuthProviderUIContext Current;
+
+        public string Message { get; private set; }
+        public IntPtr ParentWindowHandle { get; private set; }
+
+        IntPtr IWin32Window.Handle { get { return ParentWindowHandle; } }
+
+        private AuthProviderUIContext(string message, IntPtr windowHandle)
+        {
+            Message = message;
+            ParentWindowHandle = windowHandle;
+        }
+
+        public static AuthProviderUIContext With(string message, IntPtr windowHandle)
+        {
+            var result = new AuthProviderUIContext(message, windowHandle);
+            Current = result;
+            return result;
+        }
+
+        public void Dispose()
+        {
+#pragma warning disable S2696 // Instance members should not write to "static" fields
+            Current = null;
+#pragma warning restore S2696 // Instance members should not write to "static" fields
+        }
+    }
 
 
+
+/*
 #if MONO
 
     [Flags]
@@ -540,4 +621,5 @@ namespace SecurityTests
     }
 
 #endif
+*/
 }

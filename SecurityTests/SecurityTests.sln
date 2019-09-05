@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28307.757
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SecurityTests", "SecurityTests.csproj", "{E796FD76-51E0-4B56-887C-F7CC7DCBEE2C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SecurityTests", "SecurityTests.csproj", "{8019AD97-462D-4058-B47F-89E9D1403FF8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,15 +11,15 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{E796FD76-51E0-4B56-887C-F7CC7DCBEE2C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{E796FD76-51E0-4B56-887C-F7CC7DCBEE2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{E796FD76-51E0-4B56-887C-F7CC7DCBEE2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{E796FD76-51E0-4B56-887C-F7CC7DCBEE2C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8019AD97-462D-4058-B47F-89E9D1403FF8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8019AD97-462D-4058-B47F-89E9D1403FF8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8019AD97-462D-4058-B47F-89E9D1403FF8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8019AD97-462D-4058-B47F-89E9D1403FF8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {8F813BC9-B735-4BBF-9C38-7D24A53F66F6}
+		SolutionGuid = {3F77B824-A4D1-4226-BF28-F6775D96507E}
 	EndGlobalSection
 EndGlobal

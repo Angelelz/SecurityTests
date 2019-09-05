@@ -10,10 +10,10 @@ namespace SecurityTests
     {
         static void Main()
         {
-            Console.WriteLine("Starting...");
-
-
-
+            Console.WriteLine("Starting");
+            IntPtr ip = new IntPtr();
+            var myManager = new KeyManager(ip);
+            Console.WriteLine(myManager.OnKeyPrompt());
             Console.ReadKey();
         }
     }

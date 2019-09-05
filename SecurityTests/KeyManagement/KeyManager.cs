@@ -8,7 +8,7 @@ using System.Windows.Forms;
 using KeePass.Forms;
 using KeePassLib.Keys;
 using KeePassLib.Serialization;
-using KeePassWinHello.Utilities;
+using KeePassLib.Security;
 
 namespace SecurityTests
 {
@@ -30,51 +30,27 @@ namespace SecurityTests
 
         public KeyManager(IntPtr windowHandle)
         {
+            Console.WriteLine("Handle: " + windowHandle);
             _keePassMainWindowHandle = windowHandle;
             _keyCipher = new KeyCipher(windowHandle);
             _keyStorage = KeyStorageFactory.Create(_keyCipher.AuthProvider);
+            Console.WriteLine("Created KM..");
         }
 
-        public void OnKeyPrompt(KeyPromptForm keyPromptForm, MainForm mainWindow)
+        public string OnKeyPrompt()
         {
-            if (!Settings.Instance.Enabled)
-                return;
 
-            string dbPath = GetDbPath(keyPromptForm);
-            if (keyPromptForm.SecureDesktopMode)
+            string dbPath = @"C:\Users\angel\Downloads\test.kdbx";
+            if (ExtractCompositeKey(dbPath, out CompositeKey compositeKey))
             {
-                if (IsKeyForDataBaseExist(dbPath))
-                {
-                    var dbFile = GetIoInfo(keyPromptForm);
-                    CloseFormWithResult(keyPromptForm, DialogResult.Cancel);
-                    Task.Factory.StartNew(() =>
-                    {
-                        KeePass.Program.Config.Security.MasterKeyOnSecureDesktop = false;
-                        Thread.Yield();
-                        ReOpenKeyPromptForm(mainWindow, dbFile);
-                    })
-                    .ContinueWith(_ =>
-                    {
-                        KeePass.Program.Config.Security.MasterKeyOnSecureDesktop = true;
-                    });
-                }
+
+                KcpPassword pass = (KcpPassword)compositeKey.GetUserKey(typeof(KcpPassword));
+                var mpass = pass.Password;
+                return mpass.ReadString();
             }
             else
-            {
-                try
-                {
-                    CompositeKey compositeKey;
-                    if (ExtractCompositeKey(dbPath, out compositeKey))
-                    {
-                        SetCompositeKey(keyPromptForm, compositeKey);
-                        CloseFormWithResult(keyPromptForm, DialogResult.OK);
-                    }
-                }
-                catch (AuthProviderUserCancelledException)
-                {
-                    CloseFormWithResult(keyPromptForm, DialogResult.Cancel);
-                }
-            }
+                return null;
+                
         }
 
         public void OnDBClosing(object sender, FileClosingEventArgs e)
@@ -89,14 +65,7 @@ namespace SecurityTests
                 return;
 
             string dbPath = e.Database.IOConnectionInfo.Path;
-            if (!IsDBLocking(e) && Settings.Instance.GetAuthCacheType() == AuthCacheType.Local)
-            {
-                _keyStorage.Remove(dbPath);
-            }
-            else if (Settings.Instance.Enabled)
-            {
-                _keyStorage.AddOrUpdate(dbPath, ProtectedKey.Create(e.Database.MasterKey, _keyCipher));
-            }
+                _keyStorage.AddOrUpdate(dbPath, KeePassWinHello.ProtectedKey.Create(e.Database.MasterKey, _keyCipher));
         }
 
         public void RevokeAll()
@@ -113,12 +82,10 @@ namespace SecurityTests
                 _keyStorage = KeyStorageFactory.Create(_keyCipher.AuthProvider);
                 // todo migrate
             }
-            catch (AuthProviderUserCancelledException)
+            catch
             {
-                if (authCacheType == AuthCacheType.Persistent)
-                    Settings.Instance.WinStorageEnabled = false;
 
-                MessageBox.Show(AuthProviderUIContext.Current, "Creating persistent key for Credential Manager has been canceled", Settings.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(AuthProviderUIContext.Current, "Creating persistent key for Credential Manager has been canceled", "KeePassWinHello", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
@@ -151,22 +118,28 @@ namespace SecurityTests
             if (String.IsNullOrEmpty(dbPath))
                 return false;
 
-            ProtectedKey encryptedData;
+            KeePassWinHello.ProtectedKey encryptedData;
             if (!_keyStorage.TryGetValue(dbPath, out encryptedData))
                 return false;
 
+            if (!(encryptedData != null))
+                MessageBox.Show("encryptedDataNull");
+            
             try
             {
-                using (AuthProviderUIContext.With(Settings.DecryptConfirmationMessage, _keePassMainWindowHandle))
+                using (AuthProviderUIContext.With("Authentication to hack", _keePassMainWindowHandle))
                 {
+                    
                     compositeKey = encryptedData.GetCompositeKey(_keyCipher);
+                    
                     return true;
                 }
             }
             catch (Exception)
             {
                 _keyStorage.Remove(dbPath);
-                throw;
+                //throw;
+                return false;
             }
         }
 

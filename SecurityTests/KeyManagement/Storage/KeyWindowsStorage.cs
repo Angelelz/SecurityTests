@@ -1,9 +1,11 @@
 ﻿using KeePassLib.Utility;
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
 
 namespace SecurityTests
 {
@@ -51,7 +53,7 @@ namespace SecurityTests
         #endregion
 
         private const int _maxBlobSize = 512 * 5;
-        private const string _credPrefix = Settings.ProductName + "_";
+        private const string _credPrefix = "KeePassWInHello_";
 
         public int Count
         {
@@ -67,9 +69,9 @@ namespace SecurityTests
         {
             var credsToRemove = new List<string>();
             ForEach(ncred => credsToRemove.Add(Marshal.PtrToStringUni(ncred.TargetName)));
-
-            foreach (var target in credsToRemove)
-                CredDelete(target, CRED_TYPE_GENERIC, 0);
+            MessageBox.Show("Clear");
+            //foreach (var target in credsToRemove)
+            //    CredDelete(target, CRED_TYPE_GENERIC, 0);
         }
 
         private string GetTarget(string path)
@@ -77,9 +79,9 @@ namespace SecurityTests
             return _credPrefix + path;
         }
 
-        public void AddOrUpdate(string dbPath, ProtectedKey protectedKey)
+        public void AddOrUpdate(string dbPath, KeePassWinHello.ProtectedKey protectedKey)
         {
-            byte[] data = ProtectedKey.Serialize(protectedKey);
+            byte[] data = KeePassWinHello.ProtectedKey.Serialize(protectedKey);
             try
             {
                 if (data.Length > _maxBlobSize)
@@ -90,7 +92,7 @@ namespace SecurityTests
                 {
                     ncred.Type = CRED_TYPE_GENERIC;
                     ncred.Persist = CRED_PERSIST_LOCAL_MACHINE;
-                    ncred.UserName = Marshal.StringToCoTaskMemUni(Settings.ProductName);
+                    ncred.UserName = Marshal.StringToCoTaskMemUni("KeePassWinHello");
                     ncred.TargetName = Marshal.StringToCoTaskMemUni(GetTarget(dbPath));
                     ncred.CredentialBlob = Marshal.AllocCoTaskMem(data.Length);
                     Marshal.Copy(data, 0, ncred.CredentialBlob, data.Length);
@@ -135,26 +137,12 @@ namespace SecurityTests
                     credsToRemove.Add(Marshal.PtrToStringUni(ncred.TargetName));
             });
 
-            foreach (var target in credsToRemove)
-                CredDelete(target, CRED_TYPE_GENERIC, 0);
+            //foreach (var target in credsToRemove)
+            //    CredDelete(target, CRED_TYPE_GENERIC, 0);
         }
 
         private bool IsExpired(CREDENTIAL ncred)
         {
-            try
-            {
-                long highDateTime = (long)((uint)ncred.LastWritten.dwHighDateTime) << 32;
-                long lowDateTime = (uint)ncred.LastWritten.dwLowDateTime;
-
-                var createdDate = DateTime.FromFileTime(highDateTime | lowDateTime);
-                if (DateTime.Now - createdDate >= Settings.Instance.InvalidatingTime)
-                    return true;
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                return true;
-            }
-
             return false;
         }
 
@@ -187,10 +175,11 @@ namespace SecurityTests
 
         public void Remove(string dbPath)
         {
-            CredDelete(GetTarget(dbPath), CRED_TYPE_GENERIC, 0).ThrowOnError("CredDelete");
+            //CredDelete(GetTarget(dbPath), CRED_TYPE_GENERIC, 0).ThrowOnError("CredDelete");
+            MessageBox.Show("Queriendo Borrar");
         }
 
-        public bool TryGetValue(string dbPath, out ProtectedKey protectedKey)
+        public bool TryGetValue(string dbPath, out KeePassWinHello.ProtectedKey protectedKey)
         {
             protectedKey = null;
             IntPtr ncredPtr;
@@ -198,6 +187,7 @@ namespace SecurityTests
             if (!CredRead(GetTarget(dbPath), CRED_TYPE_GENERIC, 0, out ncredPtr).Result)
             {
                 Debug.Assert(Marshal.GetLastWin32Error() == ERROR_NOT_FOUND);
+                MessageBox.Show("Not Cred Read");
                 return false;
             }
 
@@ -210,16 +200,20 @@ namespace SecurityTests
 
                 data = new byte[ncred.CredentialBlobSize];
                 Marshal.Copy(ncred.CredentialBlob, data, 0, data.Length);
+                
+                protectedKey = KeePassWinHello.ProtectedKey.Deserialize(data);
+                
 
-                protectedKey = ProtectedKey.Deserialize(data);
             }
-            catch
+            catch (Exception e)
             {
-                CredDelete(GetTarget(dbPath), CRED_TYPE_GENERIC, 0);
-                throw;
+                MessageBox.Show("nobien2 " + e);
+                //CredDelete(GetTarget(dbPath), CRED_TYPE_GENERIC, 0);
+                //throw;
             }
             finally
             {
+                
                 CredFree(ncredPtr);
                 if (data != null)
                     MemUtil.ZeroByteArray(data);
@@ -227,4 +221,24 @@ namespace SecurityTests
             return true;
         }
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct BOOL
+    {
+        public int Value;
+        public bool Result { get { return Value != 0; } }
+
+        public bool ThrowOnError(string debugInfo = "", params int[] ignoredErrors)
+        {
+            if (!Result)
+            {
+                int errorCode = Marshal.GetLastWin32Error();
+                if (errorCode != 0 && (ignoredErrors == null || !ignoredErrors.Contains(errorCode)))
+                    MessageBox.Show("debugInfo" + debugInfo + errorCode.ToString());
+            }
+
+            return Result;
+        }
+    }
+
 }

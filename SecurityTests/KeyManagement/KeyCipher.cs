@@ -4,7 +4,6 @@ using KeePassLib.Cryptography;
 using KeePassLib.Cryptography.Cipher;
 using KeePassLib.Security;
 using KeePassLib.Utility;
-using KeePassWinHello.Utilities;
 
 namespace SecurityTests
 {
@@ -21,25 +20,13 @@ namespace SecurityTests
             _encryptionIV = new byte[16];
             _cipherEngine = CipherPool.GlobalPool.GetCipher(StandardAesEngine.AesUuid);
             _cryptProvider = GetAuthProvider(keePassWindowHandle);
+            Console.WriteLine("Provider: " + _cryptProvider.CurrentCacheType);
         }
 
         private static IAuthProvider GetAuthProvider(IntPtr keePassWindowHandle)
         {
-            var authCacheType = Settings.Instance.GetAuthCacheType();
-            try
-            {
+            var authCacheType = AuthCacheType.Persistent;
                 return AuthProviderFactory.GetInstance(keePassWindowHandle, authCacheType);
-            }
-            catch (AuthProviderInvalidKeyException ex)
-            {
-                if (authCacheType == AuthCacheType.Local)
-                    throw;
-
-                Settings.Instance.WinStorageEnabled = false;
-                authCacheType = Settings.Instance.GetAuthCacheType();
-                ErrorHandler.ShowError(ex, "For security reasons Credential Manager storage has been turned off. Use Options dialog to turn it on.");
-                return AuthProviderFactory.GetInstance(keePassWindowHandle, authCacheType);
-            }
         }
 
         public IAuthProvider AuthProvider { get { return _cryptProvider; } }
@@ -66,6 +53,7 @@ namespace SecurityTests
         public ProtectedBinary UnProtect(ProtectedBinary key)
         {
             byte[] encryptedData = key.ReadData();
+            //Console.Write(key.Length + " + " + encryptedData.Length);
             byte[] data = null;
             try
             {

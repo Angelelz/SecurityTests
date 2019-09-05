@@ -22,7 +22,7 @@ namespace SecurityTests
         {
             var provider = WinHelloProvider.CreateInstance(authCacheType);
 
-            return new WinHelloProviderForegroundDecorator(provider, keePassWindowHandle);
+            return new WinHelloProvider2(provider, keePassWindowHandle);
         }
     }
 }

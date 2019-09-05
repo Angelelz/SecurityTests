@@ -11,7 +11,7 @@ using KeePassLib.Keys;
 using KeePassLib.Security;
 using KeePassLib.Utility;
 
-namespace SecurityTests
+namespace KeePassWinHello
 {
     [Serializable]
     class ProtectedKey : SerializationBinder, ISerializable
@@ -38,7 +38,7 @@ namespace SecurityTests
         }
 
         private const byte VERSION = 1;
-        private readonly ProtectedBinary _protectedPassword;
+        public readonly ProtectedBinary _protectedPassword;
         private readonly List<KcpData> _keys;
 
         protected ProtectedKey(SerializationInfo info, StreamingContext context)
@@ -94,18 +94,21 @@ namespace SecurityTests
             var stream = new MemoryStream();
             stream.Write(data, 0, data.Length);
             stream.Position = 0;
-
+            
             var formatter = new BinaryFormatter();
             formatter.Binder = new ProtectedKey();
-            return (ProtectedKey)formatter.Deserialize(stream);
+            var pk = (ProtectedKey)formatter.Deserialize(stream);
+            Console.WriteLine("Created PK.." + pk._keys[0].EncryptedData.Length + " + " + pk._protectedPassword.Length);
+            return pk;
+            
         }
 
-        public static ProtectedKey Create(CompositeKey compositeKey, KeyCipher keyCipher)
+        public static ProtectedKey Create(CompositeKey compositeKey, SecurityTests.KeyCipher keyCipher)
         {
             return new ProtectedKey(compositeKey, keyCipher);
         }
 
-        public ProtectedKey(CompositeKey compositeKey, KeyCipher keyCipher)
+        public ProtectedKey(CompositeKey compositeKey, SecurityTests.KeyCipher keyCipher)
         {
             var password = keyCipher.GeneratePassword();
             _protectedPassword = keyCipher.Protect(password);
@@ -145,9 +148,10 @@ namespace SecurityTests
             }
         }
 
-        public CompositeKey GetCompositeKey(KeyCipher keyCipher)
+        public CompositeKey GetCompositeKey(SecurityTests.KeyCipher keyCipher)
         {
             var password = keyCipher.UnProtect(_protectedPassword);
+
             var compositeKey = new CompositeKey();
 
             foreach (var data in _keys)
@@ -190,7 +194,45 @@ namespace SecurityTests
 
         public override Type BindToType(string assemblyName, string typeName)
         {
-            return Assembly.GetExecutingAssembly().GetType(typeName);
+
+            Type typeToDeserialize = null;
+
+            String currentAssembly = Assembly.GetExecutingAssembly().FullName;
+
+            // In this case we are always using the current assembly
+            assemblyName = currentAssembly;
+
+            // Get the type using the typeName and assemblyName
+            typeToDeserialize = Type.GetType(String.Format("{0}, {1}",
+                typeName, assemblyName));
+
+            return typeToDeserialize;
+
+
+            /*
+            Type ttd = null;
+            try
+            {
+                string toassname = assemblyName.Split(',')[0];
+                Assembly[] asmblies = AppDomain.CurrentDomain.GetAssemblies();
+                foreach (Assembly ass in asmblies)
+                {
+                    if (ass.FullName.Split(',')[0] == toassname)
+                    {
+                        ttd = ass.GetType(typeName);
+                        break;
+                    }
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.WriteLine(e.Message);
+            }
+            return ttd;
+            */
+            //return Assembly.LoadFile(@"C:\Program Files (x86)\KeePass Password Safe 2\Plugins\KeePassWinHello.dll").GetType(typeName);
+
+            //return Assembly.GetExecutingAssembly().GetType(typeName);
         }
     }
 }
