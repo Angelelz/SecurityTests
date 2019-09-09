@@ -74,6 +74,15 @@ namespace SecurityTests
             //    CredDelete(target, CRED_TYPE_GENERIC, 0);
         }
 
+        public List<string> ListAll()
+        {
+            var creds = new List<string>();
+
+            ForEach(ncred => creds.Add(Marshal.PtrToStringUni(ncred.TargetName)));
+
+            return creds;
+        }
+
         private string GetTarget(string path)
         {
             return _credPrefix + path;
@@ -109,6 +118,7 @@ namespace SecurityTests
             }
             finally
             {
+                Console.WriteLine("ProtectedKey Data saved to a credential.");
                 MemUtil.ZeroByteArray(data);
             }
         }
@@ -179,6 +189,11 @@ namespace SecurityTests
             MessageBox.Show("Queriendo Borrar");
         }
 
+        public static void DeleteCred(string dbPath)
+        {
+            CredDelete("KeePassWinHello_" + dbPath, CRED_TYPE_GENERIC, 0).ThrowOnError("CredDelete");
+        }
+
         public bool TryGetValue(string dbPath, out KeePassWinHello.ProtectedKey protectedKey)
         {
             protectedKey = null;
@@ -187,7 +202,7 @@ namespace SecurityTests
             if (!CredRead(GetTarget(dbPath), CRED_TYPE_GENERIC, 0, out ncredPtr).Result)
             {
                 Debug.Assert(Marshal.GetLastWin32Error() == ERROR_NOT_FOUND);
-                MessageBox.Show("Not Cred Read");
+                Console.WriteLine("Credential does not exist.");
                 return false;
             }
 

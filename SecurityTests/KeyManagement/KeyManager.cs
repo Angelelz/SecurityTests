@@ -22,7 +22,7 @@ namespace SecurityTests
 
     class KeyManager : IKeyManager
     {
-        private IKeyStorage _keyStorage;
+        public IKeyStorage _keyStorage;
         private readonly KeyCipher _keyCipher;
         private readonly IntPtr _keePassMainWindowHandle;
 
@@ -30,17 +30,17 @@ namespace SecurityTests
 
         public KeyManager(IntPtr windowHandle)
         {
-            Console.WriteLine("Handle: " + windowHandle);
+            //Console.WriteLine("Handle: " + windowHandle);
             _keePassMainWindowHandle = windowHandle;
             _keyCipher = new KeyCipher(windowHandle);
             _keyStorage = KeyStorageFactory.Create(_keyCipher.AuthProvider);
-            Console.WriteLine("Created KM..");
+            Console.WriteLine("Created KeyManager Instance.");
         }
 
-        public string OnKeyPrompt()
+        public string DecryptString(string dbPath)
         {
 
-            string dbPath = @"C:\Users\angel\Downloads\test.kdbx";
+            
             if (ExtractCompositeKey(dbPath, out CompositeKey compositeKey))
             {
 
@@ -53,20 +53,16 @@ namespace SecurityTests
                 
         }
 
-        public void OnDBClosing(object sender, FileClosingEventArgs e)
+        public void EncryptString(string keyname, string mypass)
         {
-            if (e == null)
-            {
-                Debug.Fail("Event is null");
-                return;
-            }
-
-            if (e.Cancel || e.Database == null || e.Database.MasterKey == null || e.Database.IOConnectionInfo == null)
-                return;
-
-            string dbPath = e.Database.IOConnectionInfo.Path;
-                _keyStorage.AddOrUpdate(dbPath, KeePassWinHello.ProtectedKey.Create(e.Database.MasterKey, _keyCipher));
+            var ck = new CompositeKey();
+            var kps = new KcpPassword(mypass);
+            ck.AddUserKey(kps);
+            _keyStorage.AddOrUpdate(keyname, KeePassWinHello.ProtectedKey.Create(ck, _keyCipher));
+            
         }
+
+
 
         public void RevokeAll()
         {

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace SecurityTests
 {
@@ -6,6 +7,7 @@ namespace SecurityTests
     {
         int Count { get; }
 
+        List<string> ListAll();
         void AddOrUpdate(string dbPath, KeePassWinHello.ProtectedKey protectedKey);
         bool TryGetValue(string dbPath, out KeePassWinHello.ProtectedKey protectedKey);
         bool ContainsKey(string dbPath);

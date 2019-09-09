@@ -54,7 +54,7 @@ namespace SecurityTests
                         MessageBox.Show("AuthProviderUserCancelledException");
                         break;
                     default:
-                        MessageBox.Show("External error occurred", secStatus.ToString());
+                        Console.WriteLine("External error occurred" + secStatus.ToString());
                         break;
                 }
             }
@@ -112,7 +112,6 @@ namespace SecurityTests
                                                [Out] out int pcbResult,
                                                int dwFlags);
         #endregion
-
         private static readonly Lazy<string> _localKeyName = new Lazy<string>(RetreiveLocalKeyName);
 
         private static readonly object _mutex = new object();
@@ -124,18 +123,27 @@ namespace SecurityTests
         private const string InvalidatedKeyMessage = "Persistent key has not met integrity requirements. It might be caused by a spoofing attack. Try to recreate the key.";
         private string _currentKeyName;
 
+        public static string CustomKeyName(string keyname)
+        {
+            var sid = WindowsIdentity.GetCurrent().User.Value;
+            return sid + "//" + keyname + "/" + "" + "/" + keyname;
+        }
+
         private static string RetreiveLocalKeyName()
         {
             string key;
             NgcGetDefaultDecryptionKeyName(WindowsIdentity.GetCurrent().User.Value, 0, 0, out key);
             return key;
         }
-        private static string RetreivePersistentKeyName()
+        public static string RetreivePersistentKeyName()
         {
-            var sid = WindowsIdentity.GetCurrent().User.Value;
-            var sid1 = sid + "//" + Domain + "/" + SubDomain + "/" + PersistentName;
-            //Console.WriteLine(sid1);
-            return sid1;
+            if (Program._isDefaultKeyName)
+            {
+                var sid = WindowsIdentity.GetCurrent().User.Value;
+                return sid + "//" + Domain + "/" + SubDomain + "/" + PersistentName;
+            }
+            else return Program.pkn;
+
         }
 
         private static bool IsAvailable()
@@ -156,7 +164,10 @@ namespace SecurityTests
 
                 SafeNCryptKeyHandle ngcKeyHandle;
                 if (!TryOpenPersistentKey(out ngcKeyHandle))
-                    MessageBox.Show("Persistent key does not exist.");
+                {
+                    Console.WriteLine("Persistent key does not exist.");
+                    ngcKeyHandle = CreatePersistentKey(true);
+                }
 
                 using (ngcKeyHandle)
                 {
@@ -253,8 +264,23 @@ namespace SecurityTests
             {
                 using (ngcKeyHandle)
                 {
+                    
                     //NCryptDeleteKey(ngcKeyHandle, 0).CheckStatus();
                     //ngcKeyHandle.SetHandleAsInvalid();
+                }
+            }
+        }
+
+        public static void DeletePersistentKey2()
+        {
+            SafeNCryptKeyHandle ngcKeyHandle;
+            if (TryOpenPersistentKey(out ngcKeyHandle))
+            {
+                using (ngcKeyHandle)
+                {
+                    if (NCryptDeleteKey(ngcKeyHandle, 0).secStatus == 0)
+                        Console.WriteLine("Key " + Program.pkn + " deleted.");
+                    ngcKeyHandle.SetHandleAsInvalid();
                 }
             }
         }
@@ -292,7 +318,7 @@ namespace SecurityTests
             return true;
         }
 
-        private static SafeNCryptKeyHandle CreatePersistentKey(bool overwriteExisting)
+        public static SafeNCryptKeyHandle CreatePersistentKey(bool overwriteExisting)
         {
             SafeNCryptProviderHandle ngcProviderHandle;
             NCryptOpenStorageProvider(out ngcProviderHandle, MS_NGC_KEY_STORAGE_PROVIDER, 0).CheckStatus();
@@ -300,12 +326,14 @@ namespace SecurityTests
             SafeNCryptKeyHandle ngcKeyHandle;
             using (ngcProviderHandle)
             {
-                NCryptCreatePersistedKey(ngcProviderHandle,
+                Console.WriteLine("Creating Key: " + RetreivePersistentKeyName());
+                int result;
+                result = NCryptCreatePersistedKey(ngcProviderHandle,
                     out ngcKeyHandle,
                     BCRYPT_RSA_ALGORITHM,
                     RetreivePersistentKeyName(),
                     0, overwriteExisting ? CngKeyCreationOptions.OverwriteExistingKey : CngKeyCreationOptions.None
-                    ).CheckStatus();
+                    ).secStatus;
 
                 byte[] lengthProp = BitConverter.GetBytes(2048);
                 NCryptSetProperty(ngcKeyHandle, NCRYPT_LENGTH_PROPERTY, lengthProp, lengthProp.Length, CngPropertyOptions.None).CheckStatus();
@@ -313,14 +341,15 @@ namespace SecurityTests
                 byte[] keyUsage = BitConverter.GetBytes(NCRYPT_ALLOW_DECRYPT_FLAG | NCRYPT_ALLOW_SIGNING_FLAG);
                 NCryptSetProperty(ngcKeyHandle, NCRYPT_KEY_USAGE_PROPERTY, keyUsage, keyUsage.Length, CngPropertyOptions.None).CheckStatus();
                 
-                byte[] cacheType = BitConverter.GetBytes(1);
-                NCryptSetProperty(ngcKeyHandle, NCRYPT_NGC_CACHE_TYPE_PROPERTY, cacheType, cacheType.Length, CngPropertyOptions.None).CheckStatus();
+                //byte[] cacheType = BitConverter.GetBytes(2);
+                //NCryptSetProperty(ngcKeyHandle, NCRYPT_NGC_CACHE_TYPE_PROPERTY, cacheType, cacheType.Length, CngPropertyOptions.None).CheckStatus();
 
                 ApplyUIContext(ngcKeyHandle);
 
-                NCryptFinalizeKey(ngcKeyHandle, 0).CheckStatus();
+                if (NCryptFinalizeKey(ngcKeyHandle, 0).secStatus == 0 && result == 0)
+                    Console.WriteLine("Key Successfuly created");
             }
-
+            
             return ngcKeyHandle;
         }
 
@@ -346,7 +375,7 @@ namespace SecurityTests
                     System.Diagnostics.Debug.Assert(cbResult.Length == pcbResult);
                 }
             }
-
+            Console.WriteLine("Data Encrypted.");
             return cbResult;
         }
 
@@ -363,48 +392,66 @@ namespace SecurityTests
                 using (ngcKeyHandle)
                 {
                     if (CurrentCacheType == AuthCacheType.Persistent && !VerifyPersistentKeyIntegrity(ngcKeyHandle))
-                        Console.WriteLine("Failed Integrity");
+                        Console.WriteLine("Failed Integrity check");
                     
                     ApplyUIContext(ngcKeyHandle);
 
-                    byte[] pinRequired = BitConverter.GetBytes(1);
-                    NCryptSetProperty(ngcKeyHandle, NCRYPT_PIN_CACHE_IS_GESTURE_REQUIRED_PROPERTY, pinRequired, pinRequired.Length, CngPropertyOptions.None).CheckStatus();
+                    //byte[] pinRequired = BitConverter.GetBytes(1);
+                    //NCryptSetProperty(ngcKeyHandle, NCRYPT_PIN_CACHE_IS_GESTURE_REQUIRED_PROPERTY, pinRequired, pinRequired.Length, CngPropertyOptions.None).CheckStatus();
                     
                     // The pbInput and pbOutput parameters can point to the same buffer. In this case, this function will perform the decryption in place.
                     cbResult = new byte[data.Length * 2];
                     int pcbResult;
+
                     
-                    Console.WriteLine(NCryptDecrypt(ngcKeyHandle, data, data.Length, IntPtr.Zero, cbResult, cbResult.Length, out pcbResult, NCRYPT_PAD_PKCS1_FLAG).secStatus);
+                    if (CheckProperty())
+                    {
+                        Console.WriteLine("Key is signed.");
+                        byte[] cacheType = BitConverter.GetBytes(0);
+                        NCryptSetProperty(ngcKeyHandle, NCRYPT_NGC_CACHE_TYPE_PROPERTY, cacheType, cacheType.Length, CngPropertyOptions.None);
+                    }
+
+                    NCryptDecrypt(ngcKeyHandle, data, data.Length, IntPtr.Zero, cbResult, cbResult.Length, out pcbResult, NCRYPT_PAD_PKCS1_FLAG).CheckStatus();
                     // TODO: secure resize
-                    Console.WriteLine("Aqui?");
                     Array.Resize(ref cbResult, pcbResult);
                 }
             }
-            /*
-            SafeNCryptProviderHandle ngcProviderHandle;
-            var ChkResult = NCryptOpenStorageProvider(out ngcProviderHandle, "Microsoft Passport Key Storage Provider", 0);
-
-            SafeNCryptKeyHandle ngcKeyHandle;
-            var ChkResult2 = NCryptOpenKey(
-                    ngcProviderHandle,
-                    out ngcKeyHandle,
-                    WinHelloProvider.CurrentPassportKeyName.Value,
-                    0,
-                    CngKeyOpenOptions.None);
-
-            var cbResult = new byte[data.Length * 2];
-
-            int pcbResult;
-
-            int NcryptPadPkcs1Flag = 0x00000002;
-
-            var integ = NCryptDecrypt(ngcKeyHandle, data, data.Length, IntPtr.Zero,
-                cbResult, cbResult.Length, out pcbResult, NcryptPadPkcs1Flag);
-
-            Array.Resize(ref cbResult, pcbResult);
-            */
             return cbResult;
             
+        }
+
+        public static string IntToHex(int integer)
+        {
+            return "0x" + BitConverter.ToString(BitConverter.GetBytes(integer)).Replace("-", "");
+        }
+
+        public static bool TryChangeProperty(string name)
+        {
+            NCryptOpenStorageProvider(out SafeNCryptProviderHandle ngcProviderHandle, MS_NGC_KEY_STORAGE_PROVIDER, 0).CheckStatus();
+            NCryptOpenKey(ngcProviderHandle, out SafeNCryptKeyHandle ngcKeyHandle, name, 0, CngKeyOpenOptions.None).CheckStatus();
+
+            //byte[] cacheType = BitConverter.GetBytes(pcbResult);
+            NCryptSetProperty(ngcKeyHandle, NCRYPT_NGC_CACHE_TYPE_PROPERTY, IntToHex(0), IntToHex(0).Length, CngPropertyOptions.None).CheckStatus();
+
+            NCryptFinalizeKey(ngcKeyHandle, 0).CheckStatus();
+
+            return CheckProperty();
+
+        }
+
+        public static bool CheckProperty()
+        {
+            NCryptOpenStorageProvider(out SafeNCryptProviderHandle ngcProviderHandle, MS_NGC_KEY_STORAGE_PROVIDER, 0);
+            NCryptOpenKey(ngcProviderHandle, out SafeNCryptKeyHandle ngcKeyHandle, RetreivePersistentKeyName(), 0, CngKeyOpenOptions.None);
+
+            int output = 0;
+
+            NCryptGetProperty(ngcKeyHandle, NCRYPT_NGC_CACHE_TYPE_PROPERTY, ref output, sizeof(int), out int pcbResult, 0);
+
+            if (output == 1) return true;
+
+            return false;
+
         }
 
         internal static readonly Lazy<string> CurrentPassportKeyName = new Lazy<string>(RetrievePassportKeyName);

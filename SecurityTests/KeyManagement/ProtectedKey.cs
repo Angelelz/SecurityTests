@@ -98,7 +98,6 @@ namespace KeePassWinHello
             var formatter = new BinaryFormatter();
             formatter.Binder = new ProtectedKey();
             var pk = (ProtectedKey)formatter.Deserialize(stream);
-            Console.WriteLine("Created PK.." + pk._keys[0].EncryptedData.Length + " + " + pk._protectedPassword.Length);
             return pk;
             
         }
@@ -207,32 +206,6 @@ namespace KeePassWinHello
                 typeName, assemblyName));
 
             return typeToDeserialize;
-
-
-            /*
-            Type ttd = null;
-            try
-            {
-                string toassname = assemblyName.Split(',')[0];
-                Assembly[] asmblies = AppDomain.CurrentDomain.GetAssemblies();
-                foreach (Assembly ass in asmblies)
-                {
-                    if (ass.FullName.Split(',')[0] == toassname)
-                    {
-                        ttd = ass.GetType(typeName);
-                        break;
-                    }
-                }
-            }
-            catch (System.Exception e)
-            {
-                Debug.WriteLine(e.Message);
-            }
-            return ttd;
-            */
-            //return Assembly.LoadFile(@"C:\Program Files (x86)\KeePass Password Safe 2\Plugins\KeePassWinHello.dll").GetType(typeName);
-
-            //return Assembly.GetExecutingAssembly().GetType(typeName);
         }
     }
 }
