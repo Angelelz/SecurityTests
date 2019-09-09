@@ -6,3 +6,6 @@ Console app to extract the password of KeePass databases that uses KeePassWinHel
 - When you execute the app with a key that is not signed, it will automatically show all the passwords saved by KeePassWinHello plugin.
 
 - The option to use a different key name was used for testing purposes.
+
+# To build
+To build yourself, you just need to fix the reference of KeePass like you would in a KeePass plugin
